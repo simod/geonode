@@ -35,17 +35,16 @@ def dump_model(model, filename):
     f.close()
 
 
-def add_site(name, domain):
+def add_site(name, domain, path):
     """ Add a site to database, create directory tree """
 
     # get latest SITE id
-    sites = Site.objects.all()
-    used_ids = [v[0] for v in sites.values_list()]
-    site_id = max(used_ids) + 1
+    max_site_id = Site.objects.order_by('-id')[0].id
+    site_id = max_site_id + 1
 
     # current settings is one of the sites
-    project_dir = os.path.realpath(os.path.join(settings.SITE_ROOT, '../'))
-    site_dir = os.path.join(project_dir, 'site%s' % site_id)
+    project_dir = path
+    site_dir = os.path.join(project_dir, 'site_%s' % name)
     site_template = os.path.join(os.path.dirname(__file__), 'site_template')
     shutil.copytree(site_template, site_dir)
 
@@ -55,9 +54,9 @@ def add_site(name, domain):
         '$SITE_NAME': name,
         '$DOMAIN': domain,
         '$SITE_ROOT': site_dir,
-        '$SERVE_PATH': settings.SERVE_PATH,
+        '$SERVE_PATH': settings.SERVE_PATH or '',
         '$PORTNUM': '8%s' % str(site_id).zfill(3),
-        '$GEOSERVER_URL': settings.GEOSERVER_URL,
+        '$GEOSERVER_URL': settings.OGC_SERVER['default']['LOCATION'],
         '$PROJECT_NAME': os.path.basename(os.path.dirname(settings.PROJECT_ROOT)),
     }
 

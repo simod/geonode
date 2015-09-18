@@ -8,6 +8,6 @@ class Command(BaseCommand):
     can_import_settings = True
 
     def handle(self, *args, **kwargs):
-        if len(args) < 2:
-            raise Exception('Adding site requires name and site')
-        add_site(args[0], args[1])
+        if len(args) < 3:
+            raise Exception('Adding site requires name, site andthe absolute path of the desired location')
+        add_site(args[0], args[1], args[2])
