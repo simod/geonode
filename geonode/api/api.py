@@ -179,7 +179,8 @@ class GroupResource(ModelResource):
         resource_name = 'groups'
         allowed_methods = ['get']
         filtering = {
-            'name': ALL
+            'name': ALL,
+            'id': ALL
         }
         ordering = ['title', 'last_modified']
 
