@@ -1094,6 +1094,7 @@ var GeoExplorer = Ext.extend(gxp.Viewer, {
             if (thisRecord.get('Is_Public')) {
                 //Get all the required WMS parameters from the GeoNode/Worldmap database
                 // instead of GetCapabilities
+    
                 var typename = this.searchTable.getlayerTypename(records[i]);
                 var tiled = thisRecord.get("tiled") || true;
 
@@ -1103,7 +1104,7 @@ var GeoExplorer = Ext.extend(gxp.Viewer, {
                     layer_bbox.push(parseFloat(bbox_values[j]));
                 };
                 var layer_detail_url = this.mapproxy_backend + JSON.parse(thisRecord.get('Location')).layerInfoPage;
-                var layer = {
+                var config = {
                     "styles": "",
                     "group": "General",
                     "name": thisRecord.get('LayerName'),
@@ -1120,40 +1121,86 @@ var GeoExplorer = Ext.extend(gxp.Viewer, {
                     "source": key,
                     "buffer": 0,
                     "tiled": true,
-                    "local": thisRecord.get('ServiceType') === 'WM'
+                    "local": thisRecord.get('ServiceType') === 'WM',
+                    'layerId': thisRecord.get('LayerId')
                 };
 
-                if(layer.local){
-                    layer.url = thisRecord.get('LayerUrl');
+                if(config.local){
+                    config.url = thisRecord.get('LayerUrl');
                 };
+                if (thisRecord.get('ServiceType') !== 'ESRI_ImageServer'){
+                    var record = source.createLayerRecord(config);
+                    record.selected = true;
+                    // record.data.detail_url = thisRecord.get('LayerUrl').indexOf('worldmap.harvard.edu') > -1 ?
+                    //         '/data/' + thisRecord.get('LayerName') :
+                    //         this.mapproxy_backend + JSON.parse(thisRecord.get('Location')).layerInfoPage;
+                    record.data.detail_url = layer_detail_url;
 
-                var record = source.createLayerRecord(layer);
-                record.selected = true;
-                // record.data.detail_url = thisRecord.get('LayerUrl').indexOf('worldmap.harvard.edu') > -1 ?
-                //         '/data/' + thisRecord.get('LayerName') :
-                //         this.mapproxy_backend + JSON.parse(thisRecord.get('Location')).layerInfoPage;
-                record.data.detail_url = layer_detail_url;
+                    if (record) {
+                        if (record.get("group") === "background") {
+                            var pos = layerStore.queryBy(
+                                function(rec) {
+                                    return rec.get("group") === "background"
+                                }).getCount();
+                            layerStore.insert(pos, [record]);
 
-                if (record) {
-                    if (record.get("group") === "background") {
-                        var pos = layerStore.queryBy(
-                            function(rec) {
-                                return rec.get("group") === "background"
-                            }).getCount();
-                        layerStore.insert(pos, [record]);
+                        } else {
+                            category = record.get("group");
+                            if (!category || category == '')
+                                record.set("group", "General");
 
-                    } else {
-                        category = record.get("group");
-                        if (!category || category == '')
-                            record.set("group", "General");
+                            geoEx.layerTree.addCategoryFolder({"group":record.get("group")}, true);
+                            layerStore.add([record]);
 
-                        geoEx.layerTree.addCategoryFolder({"group":record.get("group")}, true);
-                        layerStore.add([record]);
+                            //geoEx.reorderNodes(record.getLayer());
+                            geoEx.layerTree.overlayRoot.findDescendant("layer", record.getLayer()).select();
+                        }
+                    };
+                }else{
+                    var baseUrl = thisRecord.get('LayerUrl').split("?")[0];
+                    var  record = new GeoExt.data.LayerRecord(config);
+                    var layer = new OpenLayers.Layer.ArcGIS93Rest(config.name, baseUrl + "export",
+                        {
+                            layers: "show:" + config.layerId,
+                            TRANSPARENT:true
+                        },
+                        {
+                            isBaseLayer:false,
+                            ratio: 1,
+                            displayInLayerSwitcher: true,
+                            visibility: true,
+                            projection: config.srs,
+                            queryable: false
+                        }
+                    );
+                    record.setLayer(config);
+                    var category = "General";
+                    record.set("group", category);
+                    
+                    layer.addOptions({"maxExtent": config.bbox});
 
-                        //geoEx.reorderNodes(record.getLayer());
-                        geoEx.layerTree.overlayRoot.findDescendant("layer", record.getLayer()).select();
+                    // set layer title from config
+                    if (config.title) {
+                        layer.setName(config.title);
+                        record.set("title", config.title);
                     }
-                };
+
+                    if ("format" in config) {
+                        layer.params.FORMAT = config.format;
+                        record.set("format", config.format);
+                    }
+
+                    record.set("name", config.name);
+                    record.set("layerid", config.layerid || layer.params.LAYERS);
+                    record.set("format", config.format || "png");
+                    record.set("srs", layer.srs);
+                    record.set("selected", config.selected || false);
+                    record.set("properties", "gxp_arcrestlayerpanel");
+                    geoEx.layerTree.addCategoryFolder({"group":record.get("group")}, true);
+                    layerStore.add([record]);
+                    geoEx.layerTree.overlayRoot.findDescendant("layer", record.getLayer()).select();
+                }
+                
             }
             //else {
             //     //Not a local GeoNode layer, use source's standard method for creating the layer.
